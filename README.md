@@ -11,8 +11,6 @@ path-monitor init-db --config config/path_monitor.yaml
 path-monitor run      --config config/path_monitor.yaml
 ```
 
-System packages required for the validation scripts: `iptables`, `iproute2`, `tcpdump`.
-
 ## Components
 
 ### Prober ([prober/](prober/))
@@ -38,7 +36,6 @@ Tables: `targets`, `probes`, `paths`, `alerts`. Indexed on `(target_id, timestam
 prober/        Python prober (raw ICMP, traceroute, SQLite writer)
 analyzer/      Python analyzer (detectors, sinks)
 orchestrator/  Python supervisor + CLI
-scripts/       Bash validation scenarios (iptables / ip route)
 config/        YAML config
 sql/           Schema
 tests/         pytest
@@ -50,13 +47,6 @@ After `pip install .`:
 - `path-monitor-prober`    — run the prober alone
 - `path-monitor-analyzer`  — run the analyzer alone
 
-## Validation
-- Probe several public targets (DNS providers, gateway) for a few hours
-- Inject 20% loss: `sudo scripts/scenario_loss.sh 8.8.8.8 60 0.2`
-- Change route: `sudo scripts/scenario_route_change.sh 8.8.8.8 <alt-gw> 60`
-- Verify ICMP bytes against RFC 792 with `tcpdump -nni any icmp` and Wireshark
-- Inspect socket / interface state with `ss -nlp`, `netstat -i`
-
 ## Tests
 ```
 pip install -e '.[dev]'
@@ -64,4 +54,4 @@ pytest
 ```
 
 ## Tech stack
-Python 3 (stdlib `socket`, `struct`, `sqlite3`, `concurrent.futures`, `threading`), PyYAML, SQLite, Bash, iptables, tcpdump, Wireshark, ip, ss, netstat.
+Python 3 (stdlib `socket`, `struct`, `sqlite3`, `concurrent.futures`, `threading`), PyYAML, SQLite.
