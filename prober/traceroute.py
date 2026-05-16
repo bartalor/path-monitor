@@ -2,13 +2,14 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+import socket as _socket
+from dataclasses import dataclass
 
 from .icmp_packet import IcmpType
-from .icmp_socket import IcmpSocket
+from .icmp_socket import recv_reply, send_echo
 
 
-@dataclass
+@dataclass(frozen=True)
 class Hop:
     ttl: int
     ip: str = ""
@@ -17,10 +18,10 @@ class Hop:
     is_destination: bool = False
 
 
-@dataclass
+@dataclass(frozen=True)
 class TracerouteResult:
-    hops: list[Hop] = field(default_factory=list)
-    path_hash: str = ""
+    hops: list[Hop]
+    path_hash: str
 
 
 def _hash_path(hops: list[Hop]) -> str:
@@ -30,23 +31,25 @@ def _hash_path(hops: list[Hop]) -> str:
     return h.hexdigest()[:16]
 
 
-def run_traceroute(sock: IcmpSocket, dest_ip: str, identifier: int,
+def run_traceroute(sock: _socket.socket, dest_ip: str, identifier: int,
                    max_hops: int, timeout_s: float) -> TracerouteResult:
-    result = TracerouteResult()
+    hops: list[Hop] = []
     for ttl in range(1, max_hops + 1):
-        seq = ttl
-        hop = Hop(ttl=ttl)
-        if not sock.send_echo(dest_ip, identifier, seq, ttl):
-            result.hops.append(hop)
+        if not send_echo(sock, dest_ip, identifier, ttl, ttl):
+            hops.append(Hop(ttl=ttl))
             continue
-        reply = sock.recv_reply(identifier, timeout_s)
-        if reply.received:
-            hop.responded = True
-            hop.ip = reply.responder_ip
-            hop.rtt_us = reply.rtt_us
-            hop.is_destination = reply.icmp_type == int(IcmpType.ECHO_REPLY)
-        result.hops.append(hop)
-        if hop.is_destination:
+        reply = recv_reply(sock, identifier, timeout_s)
+        if reply is None:
+            hops.append(Hop(ttl=ttl))
+            continue
+        is_dest = reply.icmp_type == int(IcmpType.ECHO_REPLY)
+        hops.append(Hop(
+            ttl=ttl,
+            ip=reply.responder_ip,
+            rtt_us=reply.rtt_us,
+            responded=True,
+            is_destination=is_dest,
+        ))
+        if is_dest:
             break
-    result.path_hash = _hash_path(result.hops)
-    return result
+    return TracerouteResult(hops=hops, path_hash=_hash_path(hops))

@@ -16,7 +16,7 @@ from pathlib import Path
 import yaml
 
 from .db_writer import DbWriter, PathRecord, ProbeRecord
-from .icmp_socket import IcmpSocket
+from .icmp_socket import open_icmp_socket, recv_reply, send_echo
 from .traceroute import run_traceroute
 
 log = logging.getLogger("prober")
@@ -29,22 +29,37 @@ class Target:
     ip: str
 
 
+_tls = threading.local()
+_sockets: list = []
+_sockets_lock = threading.Lock()
+
+
+def _thread_socket():
+    sock = getattr(_tls, "sock", None)
+    if sock is None:
+        sock = open_icmp_socket()
+        _tls.sock = sock
+        with _sockets_lock:
+            _sockets.append(sock)
+    return sock
+
+
 def _probe_once(target: Target, identifier: int, sequence: int,
                 timeout_s: float, writer: DbWriter) -> None:
     try:
-        with IcmpSocket() as sock:
-            if not sock.send_echo(target.ip, identifier, sequence, ttl=64):
-                writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "sendfail"))
-                return
-            reply = sock.recv_reply(identifier, timeout_s)
+        sock = _thread_socket()
+        if not send_echo(sock, target.ip, identifier, sequence, ttl=64):
+            writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "sendfail"))
+            return
+        reply = recv_reply(sock, identifier, timeout_s)
     except OSError as e:
         log.warning("socket error for %s: %s", target.ip, e)
         writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "sendfail"))
         return
 
-    if reply.received and reply.sequence == sequence:
+    if reply is not None and reply.sequence == sequence:
         writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, reply.rtt_us, "ok"))
-    elif reply.received:
+    elif reply is not None:
         writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "unreachable"))
     else:
         writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "timeout"))
@@ -53,8 +68,7 @@ def _probe_once(target: Target, identifier: int, sequence: int,
 def _trace_once(target: Target, identifier: int, max_hops: int,
                 timeout_s: float, writer: DbWriter) -> None:
     try:
-        with IcmpSocket() as sock:
-            tr = run_traceroute(sock, target.ip, identifier, max_hops, timeout_s)
+        tr = run_traceroute(_thread_socket(), target.ip, identifier, max_hops, timeout_s)
     except OSError as e:
         log.warning("traceroute socket error for %s: %s", target.ip, e)
         return
@@ -116,6 +130,10 @@ def run(config_path: str) -> int:
     finally:
         pool.shutdown(wait=True)
         writer.stop()
+        with _sockets_lock:
+            for s in _sockets:
+                s.close()
+            _sockets.clear()
     return 0
 
 
