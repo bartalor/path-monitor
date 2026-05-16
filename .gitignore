@@ -1,0 +1,12 @@
+prober/build/
+data/*.db
+data/*.db-journal
+data/*.db-wal
+data/*.db-shm
+logs/*.log
+__pycache__/
+*.pyc
+.venv/
+.vscode/
+.idea/
+*.swp

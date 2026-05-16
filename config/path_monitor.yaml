@@ -1,0 +1,39 @@
+database:
+  path: data/path_monitor.db
+
+prober:
+  probe_interval_ms: 1000
+  probe_timeout_ms: 2000
+  worker_threads: 4
+  traceroute:
+    enabled: true
+    mode: icmp        # icmp | udp
+    max_hops: 30
+    interval_s: 60
+
+analyzer:
+  poll_interval_s: 5
+  rtt:
+    window: 60
+    z_score_threshold: 3.0
+  loss:
+    window: 30
+    threshold: 0.10
+  path_change:
+    enabled: true
+
+alerts:
+  sinks:
+    - type: stdout
+    - type: file
+      path: logs/alerts.log
+
+targets:
+  - hostname: dns.google
+    ip: 8.8.8.8
+  - hostname: one.one.one.one
+    ip: 1.1.1.1
+  - hostname: dns.quad9.net
+    ip: 9.9.9.9
+  - hostname: gateway
+    ip: 192.168.1.1
