@@ -1,4 +1,7 @@
 prober/build/
+*.egg-info/
+build/
+dist/
 data/*.db
 data/*.db-journal
 data/*.db-wal
