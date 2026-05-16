@@ -92,7 +92,7 @@ def run(config_path: str) -> int:
     next_probe       = time.monotonic()
     next_trace       = time.monotonic() + tcfg["interval_s"]
 
-    log.info("prober running: %d targets, interval=%.2fs", len(targets), probe_interval_s)
+    log.info(f"prober running: {len(targets)} targets, interval={probe_interval_s:.2f}s")
     try:
         while not stop.is_set():
             now = time.monotonic()
@@ -101,15 +101,18 @@ def run(config_path: str) -> int:
                     seq = next(seq_counters[t.id]) & 0xFFFF
                     pool.submit(_probe_once, t, identifiers[t.id], seq,
                                 probe_timeout_s, writer)
-                next_probe = now + probe_interval_s
+                next_probe += probe_interval_s
 
             if tcfg["enabled"] and now >= next_trace:
                 for t in targets:
                     pool.submit(_trace_once, t, identifiers[t.id],
                                 tcfg["max_hops"], probe_timeout_s, writer)
-                next_trace = now + tcfg["interval_s"]
+                next_trace += tcfg["interval_s"]
 
-            stop.wait(0.05)
+            next_wake = next_probe
+            if tcfg["enabled"]:
+                next_wake = min(next_wake, next_trace)
+            stop.wait(max(0, next_wake - time.monotonic()))
     finally:
         pool.shutdown(wait=True)
         writer.stop()
