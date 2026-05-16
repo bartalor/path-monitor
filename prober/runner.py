@@ -77,8 +77,7 @@ def run(config_path: str) -> int:
 
     # Per-target ICMP identifier (16-bit) chosen at startup; sequence counters
     # increment per probe. Identifiers separate concurrent probes' reply streams.
-    rng = random.Random()
-    identifiers  = {t.id: rng.randint(1, 0xFFFF) for t in targets}
+    identifiers  = {t.id: random.randint(1, 0xFFFF) for t in targets}
     seq_counters = {t.id: count(1) for t in targets}
 
     writer = DbWriter(db_path)
