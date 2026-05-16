@@ -52,15 +52,14 @@ class IcmpSocket:
         """
         deadline = time.monotonic() + timeout_s
         start = time.monotonic()
-        result = ProbeResult()
 
         while True:
             remaining = deadline - time.monotonic()
             if remaining <= 0:
-                return result
+                return ProbeResult()
             ready, _, _ = select.select([self._sock], [], [], remaining)
             if not ready:
-                return result
+                return ProbeResult()
             try:
                 data, addr = self._sock.recvfrom(1500)
             except OSError:
@@ -74,11 +73,12 @@ class IcmpSocket:
                 continue
 
             seq = parsed.inner_echo.sequence if parsed.inner_echo else parsed.sequence
-            result.received     = True
-            result.identifier   = ident
-            result.sequence     = seq
-            result.icmp_type    = parsed.type
-            result.icmp_code    = parsed.code
-            result.responder_ip = addr[0]
-            result.rtt_us       = int((time.monotonic() - start) * 1_000_000)
-            return result
+            return ProbeResult(
+                received=True,
+                identifier=ident,
+                sequence=seq,
+                icmp_type=parsed.type,
+                icmp_code=parsed.code,
+                responder_ip=addr[0],
+                rtt_us=int((time.monotonic() - start) * 1_000_000),
+            )

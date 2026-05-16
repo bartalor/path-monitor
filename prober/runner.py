@@ -10,6 +10,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from itertools import count
 from pathlib import Path
 
 import yaml
@@ -28,34 +29,25 @@ class Target:
     ip: str
 
 
-def _now_us() -> int:
-    return time.time_ns() // 1000
-
-
-def _load_targets(conn: sqlite3.Connection) -> list[Target]:
-    rows = conn.execute("SELECT id, hostname, ip FROM targets").fetchall()
-    return [Target(id=r[0], hostname=r[1], ip=r[2]) for r in rows]
-
-
 def _probe_once(target: Target, identifier: int, sequence: int,
                 timeout_s: float, writer: DbWriter) -> None:
     try:
         with IcmpSocket() as sock:
             if not sock.send_echo(target.ip, identifier, sequence, ttl=64):
-                writer.enqueue(ProbeRecord(target.id, _now_us(), None, "sendfail"))
+                writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "sendfail"))
                 return
             reply = sock.recv_reply(identifier, timeout_s)
     except OSError as e:
         log.warning("socket error for %s: %s", target.ip, e)
-        writer.enqueue(ProbeRecord(target.id, _now_us(), None, "sendfail"))
+        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "sendfail"))
         return
 
     if reply.received and reply.sequence == sequence:
-        writer.enqueue(ProbeRecord(target.id, _now_us(), reply.rtt_us, "ok"))
+        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, reply.rtt_us, "ok"))
     elif reply.received:
-        writer.enqueue(ProbeRecord(target.id, _now_us(), None, "unreachable"))
+        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "unreachable"))
     else:
-        writer.enqueue(ProbeRecord(target.id, _now_us(), None, "timeout"))
+        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "timeout"))
 
 
 def _trace_once(target: Target, identifier: int, max_hops: int,
@@ -66,7 +58,7 @@ def _trace_once(target: Target, identifier: int, max_hops: int,
     except OSError as e:
         log.warning("traceroute socket error for %s: %s", target.ip, e)
         return
-    writer.enqueue(PathRecord(target.id, _now_us(), tr))
+    writer.enqueue(PathRecord(target.id, time.time_ns() // 1000, tr))
 
 
 def run(config_path: str) -> int:
@@ -76,8 +68,9 @@ def run(config_path: str) -> int:
     tcfg    = pcfg["traceroute"]
 
     conn = sqlite3.connect(db_path)
-    targets = _load_targets(conn)
+    rows = conn.execute("SELECT id, hostname, ip FROM targets").fetchall()
     conn.close()
+    targets = [Target(id=r[0], hostname=r[1], ip=r[2]) for r in rows]
     if not targets:
         log.error("no targets in DB; run `orchestrator init-db` and start orchestrator")
         return 1
@@ -85,9 +78,8 @@ def run(config_path: str) -> int:
     # Per-target ICMP identifier (16-bit) chosen at startup; sequence counters
     # increment per probe. Identifiers separate concurrent probes' reply streams.
     rng = random.Random()
-    identifiers = {t.id: rng.randint(1, 0xFFFF) for t in targets}
-    sequences  = {t.id: 0 for t in targets}
-    seq_lock   = threading.Lock()
+    identifiers  = {t.id: rng.randint(1, 0xFFFF) for t in targets}
+    seq_counters = {t.id: count(1) for t in targets}
 
     writer = DbWriter(db_path)
     pool   = ThreadPoolExecutor(max_workers=pcfg["worker_threads"])
@@ -107,9 +99,7 @@ def run(config_path: str) -> int:
             now = time.monotonic()
             if now >= next_probe:
                 for t in targets:
-                    with seq_lock:
-                        sequences[t.id] = (sequences[t.id] + 1) & 0xFFFF
-                        seq = sequences[t.id]
+                    seq = next(seq_counters[t.id]) & 0xFFFF
                     pool.submit(_probe_once, t, identifiers[t.id], seq,
                                 probe_timeout_s, writer)
                 next_probe = now + probe_interval_s
