@@ -40,7 +40,6 @@ def cmd_init_db(args: argparse.Namespace) -> int:
     db_path.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(db_path)
     conn.executescript(SCHEMA_SQL.read_text())
-    cfgmod.upsert_targets(conn, cfg["targets"])
     conn.commit()
     conn.close()
     print(f"initialized {db_path}")
