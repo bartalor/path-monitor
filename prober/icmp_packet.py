@@ -1,9 +1,9 @@
-"""ICMP echo packet construction and parsing (RFC 792)."""
+"""ICMP echo packets (RFC 792). Pure bytes <-> tuples, no I/O."""
 from __future__ import annotations
 
 import struct
-from dataclasses import dataclass
 from enum import IntEnum
+from typing import NamedTuple
 
 
 class IcmpType(IntEnum):
@@ -13,22 +13,17 @@ class IcmpType(IntEnum):
     TIME_EXCEEDED     = 11
 
 
-@dataclass(frozen=True)
-class EchoHeader:
-    type: int
-    code: int
-    checksum: int
-    identifier: int
-    sequence: int
+# ICMP header: type, code, checksum, identifier, sequence -- 8 bytes
+_HDR = "!BBHHH"
+_ERROR_TYPES = (IcmpType.DEST_UNREACHABLE, IcmpType.TIME_EXCEEDED)
 
 
-@dataclass(frozen=True)
-class ParsedReply:
+class ParsedReply(NamedTuple):
     type: int
     code: int
-    identifier: int
-    sequence: int
-    inner_echo: EchoHeader | None  # set for TimeExceeded / DestUnreachable
+    identifier: int   # from the inner (quoted) echo if this is an error reply
+    sequence: int     # same
+    is_error: bool    # True for DEST_UNREACHABLE / TIME_EXCEEDED
 
 
 def checksum16(data: bytes) -> int:
@@ -44,43 +39,36 @@ def checksum16(data: bytes) -> int:
 
 
 def build_echo_request(identifier: int, sequence: int, payload: bytes = b"") -> bytes:
-    header = struct.pack("!BBHHH", IcmpType.ECHO_REQUEST, 0, 0, identifier, sequence)
-    pkt = header + payload
-    cks = checksum16(pkt)
-    return struct.pack("!BBHHH", IcmpType.ECHO_REQUEST, 0, cks, identifier, sequence) + payload
+    body = struct.pack(_HDR, IcmpType.ECHO_REQUEST, 0, 0, identifier, sequence) + payload
+    cks  = checksum16(body)
+    return struct.pack(_HDR, IcmpType.ECHO_REQUEST, 0, cks, identifier, sequence) + payload
 
 
-def _read_echo_header(buf: bytes) -> EchoHeader | None:
-    if len(buf) < 8:
+def parse_ipv4_icmp(pkt: bytes) -> ParsedReply | None:
+    """Parse a raw IPv4+ICMP packet. Returns None on truncation.
+
+    For error replies (TIME_EXCEEDED / DEST_UNREACHABLE) the router quotes
+    back the original IP+ICMP header that failed to deliver; the identifier
+    and sequence we care about live in that inner echo, not the outer one.
+    Those error replies are unwrapped here so callers always see the
+    identifier/sequence of *their* probe.
+    """
+    if len(pkt) < 20:
         return None
-    t, c, ck, ident, seq = struct.unpack("!BBHHH", buf[:8])
-    return EchoHeader(t, c, ck, ident, seq)
-
-
-def parse_ipv4_icmp(ip_packet: bytes) -> ParsedReply | None:
-    """Parse a raw IPv4 packet (kernel hands us the IP header on raw sockets)."""
-    if len(ip_packet) < 20:
-        return None
-    ihl = (ip_packet[0] & 0x0F) * 4
-    if ihl < 20 or len(ip_packet) < ihl + 8:
-        return None
-    icmp = ip_packet[ihl:]
-    outer = _read_echo_header(icmp)
-    if outer is None:
+    ihl = (pkt[0] & 0x0F) * 4
+    if ihl < 20 or len(pkt) < ihl + 8:
         return None
 
-    inner: EchoHeader | None = None
-    if outer.type in (IcmpType.TIME_EXCEEDED, IcmpType.DEST_UNREACHABLE):
-        rest = icmp[8:]
-        if len(rest) >= 20:
-            inner_ihl = (rest[0] & 0x0F) * 4
-            if len(rest) >= inner_ihl + 8:
-                inner = _read_echo_header(rest[inner_ihl:inner_ihl + 8])
+    t, c, _, ident, seq = struct.unpack(_HDR, pkt[ihl:ihl + 8])
 
-    return ParsedReply(
-        type=outer.type,
-        code=outer.code,
-        identifier=outer.identifier,
-        sequence=outer.sequence,
-        inner_echo=inner,
-    )
+    if t in _ERROR_TYPES:
+        rest = pkt[ihl + 8:]
+        if len(rest) < 20:
+            return None
+        inner_ihl = (rest[0] & 0x0F) * 4
+        if len(rest) < inner_ihl + 8:
+            return None
+        _, _, _, ident, seq = struct.unpack(_HDR, rest[inner_ihl:inner_ihl + 8])
+        return ParsedReply(t, c, ident, seq, is_error=True)
+
+    return ParsedReply(t, c, ident, seq, is_error=False)

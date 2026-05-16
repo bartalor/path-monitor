@@ -59,16 +59,12 @@ def recv_reply(sock: socket.socket, expected_identifier: int,
             continue
 
         parsed = parse_ipv4_icmp(data)
-        if parsed is None:
-            continue
-        ident = parsed.inner_echo.identifier if parsed.inner_echo else parsed.identifier
-        if ident != expected_identifier:
+        if parsed is None or parsed.identifier != expected_identifier:
             continue
 
-        seq = parsed.inner_echo.sequence if parsed.inner_echo else parsed.sequence
         return ProbeResult(
-            identifier=ident,
-            sequence=seq,
+            identifier=parsed.identifier,
+            sequence=parsed.sequence,
             icmp_type=parsed.type,
             icmp_code=parsed.code,
             responder_ip=addr[0],

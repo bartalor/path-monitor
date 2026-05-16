@@ -41,7 +41,7 @@ def test_parse_echo_reply():
     assert parsed.type == IcmpType.ECHO_REPLY
     assert parsed.identifier == 0xAAAA
     assert parsed.sequence == 0x0007
-    assert parsed.inner_echo is None
+    assert parsed.is_error is False
 
 
 def test_parse_time_exceeded_inner_echo():
@@ -57,6 +57,6 @@ def test_parse_time_exceeded_inner_echo():
     parsed = parse_ipv4_icmp(pkt)
     assert parsed is not None
     assert parsed.type == IcmpType.TIME_EXCEEDED
-    assert parsed.inner_echo is not None
-    assert parsed.inner_echo.identifier == 0xBEEF
-    assert parsed.inner_echo.sequence == 0x0042
+    assert parsed.is_error is True
+    assert parsed.identifier == 0xBEEF
+    assert parsed.sequence == 0x0042
