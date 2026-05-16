@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from . import config as cfgmod
+from . import targets as targetsmod
 from .supervisor import Service, Supervisor
 
 log = logging.getLogger("orchestrator")
@@ -23,7 +24,7 @@ def cmd_run(args: argparse.Namespace) -> int:
         return 1
 
     conn = sqlite3.connect(db_path)
-    cfgmod.upsert_targets(conn, cfg["targets"])
+    targetsmod.upsert_targets(conn, cfg["targets"])
     conn.commit()
     conn.close()
 
