@@ -1,6 +1,6 @@
-# CLAUDE.md
+# path-monitor
 
-Notes for working in this repo. Things you can't infer from reading the code.
+Project for continuous network path monitoring: a prober sends ICMP echo + traceroute to a list of targets, writes results to SQLite; an analyzer reads SQLite and fires alerts on RTT spikes, packet loss, and path changes; an orchestrator supervises both as subprocesses.
 
 ## Raw ICMP requires privilege
 
