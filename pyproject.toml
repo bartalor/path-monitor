@@ -16,9 +16,7 @@ dependencies = [
 dev = ["pytest>=7"]
 
 [project.scripts]
-path-monitor          = "orchestrator.cli:main"
-path-monitor-prober   = "prober.runner:main"
-path-monitor-analyzer = "analyzer.runner:main"
+path-monitor = "orchestrator.cli:main"
 
 [tool.setuptools]
 packages = ["prober", "analyzer", "orchestrator"]

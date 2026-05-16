@@ -41,12 +41,6 @@ sql/           Schema
 tests/         pytest
 ```
 
-## Console scripts
-After `pip install .`:
-- `path-monitor`           — orchestrator (subcommands: `init-db`, `run`)
-- `path-monitor-prober`    — run the prober alone
-- `path-monitor-analyzer`  — run the analyzer alone
-
 ## Tests
 Unit tests (fast, no privileges):
 ```
