@@ -48,9 +48,15 @@ After `pip install .`:
 - `path-monitor-analyzer`  — run the analyzer alone
 
 ## Tests
+Unit tests (fast, no privileges):
 ```
 pip install -e '.[dev]'
 pytest
+```
+
+Integration tests run the full pipeline (prober + analyzer + SQLite) against a sandboxed network namespace with `tc netem`–injected faults. They require Linux and root:
+```
+sudo -E pytest -m integration
 ```
 
 ## Tech stack
