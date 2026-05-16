@@ -1,0 +1,11 @@
+{
+    "name": "alerts",
+    "columns": [
+        "id",
+        "target_id",
+        "timestamp",
+        "type",
+        "details"
+    ],
+    "schema": "CREATE TABLE alerts (\n    id        INTEGER PRIMARY KEY AUTOINCREMENT,\n    target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,\n    timestamp INTEGER NOT NULL,\n    type      TEXT NOT NULL,\n    details   TEXT\n)"
+}

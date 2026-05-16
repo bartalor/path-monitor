@@ -1,0 +1,11 @@
+{
+    "name": "probes",
+    "columns": [
+        "id",
+        "target_id",
+        "timestamp",
+        "rtt_us",
+        "status"
+    ],
+    "schema": "CREATE TABLE probes (\n    id        INTEGER PRIMARY KEY AUTOINCREMENT,\n    target_id INTEGER NOT NULL REFERENCES targets(id) ON DELETE CASCADE,\n    timestamp INTEGER NOT NULL,\n    rtt_us    INTEGER,\n    status    TEXT NOT NULL\n)"
+}

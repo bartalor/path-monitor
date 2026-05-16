@@ -1,0 +1,10 @@
+{
+    "name": "targets",
+    "columns": [
+        "id",
+        "hostname",
+        "ip",
+        "probe_config"
+    ],
+    "schema": "CREATE TABLE targets (\n    id           INTEGER PRIMARY KEY AUTOINCREMENT,\n    hostname     TEXT NOT NULL,\n    ip           TEXT NOT NULL,\n    probe_config TEXT,\n    UNIQUE (hostname, ip)\n)"
+}

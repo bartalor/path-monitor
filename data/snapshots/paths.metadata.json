@@ -1,0 +1,11 @@
+{
+    "name": "paths",
+    "columns": [
+        "probe_id",
+        "hop_num",
+        "hop_ip",
+        "hop_rtt_us",
+        "path_hash"
+    ],
+    "schema": "CREATE TABLE paths (\n    probe_id   INTEGER NOT NULL REFERENCES probes(id) ON DELETE CASCADE,\n    hop_num    INTEGER NOT NULL,\n    hop_ip     TEXT,\n    hop_rtt_us INTEGER,\n    path_hash  TEXT,\n    PRIMARY KEY (probe_id, hop_num)\n)"
+}
