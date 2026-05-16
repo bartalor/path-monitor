@@ -2,10 +2,9 @@ PRAGMA journal_mode = WAL;
 PRAGMA foreign_keys = ON;
 
 CREATE TABLE IF NOT EXISTS targets (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    hostname     TEXT NOT NULL,
-    ip           TEXT NOT NULL,
-    probe_config TEXT,
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    hostname TEXT NOT NULL,
+    ip       TEXT NOT NULL,
     UNIQUE (hostname, ip)
 );
 
