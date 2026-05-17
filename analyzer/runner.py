@@ -3,7 +3,7 @@ from __future__ import annotations
 import argparse
 import logging
 import signal
-import time
+import threading
 from contextlib import closing
 from dataclasses import asdict
 from pathlib import Path
@@ -39,15 +39,12 @@ def run(config_path: str) -> None:
         targets = db.list_targets(conn)
         state = {t["id"]: TargetState(t["id"], cfg["analyzer"]) for t in targets}
 
-        stop = False
-        def handle(_sig, _frm):
-            nonlocal stop
-            stop = True
-        signal.signal(signal.SIGINT, handle)
-        signal.signal(signal.SIGTERM, handle)
+        stop = threading.Event()
+        signal.signal(signal.SIGINT,  lambda *_: stop.set())
+        signal.signal(signal.SIGTERM, lambda *_: stop.set())
 
         log.info("analyzer running over %d targets", len(state))
-        while not stop:
+        while not stop.is_set():
             for tid, st in state.items():
                 rows = db.fetch_recent_probes(conn, tid, st.last_seen_probe_ts)
                 for r in rows:
@@ -69,7 +66,7 @@ def run(config_path: str) -> None:
                         db.insert_alert(conn, al.target_id, al.timestamp_us, al.type, al.details)
                         for s in sinks:
                             s.emit(al)
-            time.sleep(poll_s)
+            stop.wait(poll_s)
 
         for s in sinks:
             s.close()
