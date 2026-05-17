@@ -4,6 +4,7 @@ import argparse
 import logging
 import signal
 import time
+from contextlib import closing
 from dataclasses import asdict
 from pathlib import Path
 
@@ -32,46 +33,46 @@ def run(config_path: str) -> None:
     db_path = cfg["database"]["path"]
     poll_s  = cfg["analyzer"]["poll_interval_s"]
 
-    conn  = db.connect(db_path)
-    sinks = build_sinks(cfg["alerts"]["sinks"])
+    with closing(db.connect(db_path)) as conn:
+        sinks = build_sinks(cfg["alerts"]["sinks"])
 
-    targets = db.list_targets(conn)
-    state = {t["id"]: TargetState(t["id"], cfg["analyzer"]) for t in targets}
+        targets = db.list_targets(conn)
+        state = {t["id"]: TargetState(t["id"], cfg["analyzer"]) for t in targets}
 
-    stop = False
-    def handle(_sig, _frm):
-        nonlocal stop
-        stop = True
-    signal.signal(signal.SIGINT, handle)
-    signal.signal(signal.SIGTERM, handle)
+        stop = False
+        def handle(_sig, _frm):
+            nonlocal stop
+            stop = True
+        signal.signal(signal.SIGINT, handle)
+        signal.signal(signal.SIGTERM, handle)
 
-    log.info("analyzer running over %d targets", len(state))
-    while not stop:
-        for tid, st in state.items():
-            rows = db.fetch_recent_probes(conn, tid, st.last_seen_probe_ts)
-            for r in rows:
-                if r["timestamp"] <= st.last_seen_probe_ts:
-                    continue
-                st.last_seen_probe_ts = r["timestamp"]
-                alerts: list[Alert] = []
-                if r["status"] == "ok":
-                    a = st.rtt.observe(tid, r["timestamp"], r["rtt_us"])
+        log.info("analyzer running over %d targets", len(state))
+        while not stop:
+            for tid, st in state.items():
+                rows = db.fetch_recent_probes(conn, tid, st.last_seen_probe_ts)
+                for r in rows:
+                    if r["timestamp"] <= st.last_seen_probe_ts:
+                        continue
+                    st.last_seen_probe_ts = r["timestamp"]
+                    alerts: list[Alert] = []
+                    if r["status"] == "ok":
+                        a = st.rtt.observe(tid, r["timestamp"], r["rtt_us"])
+                        if a: alerts.append(a)
+                    a = st.loss.observe(tid, r["timestamp"], r["status"])
                     if a: alerts.append(a)
-                a = st.loss.observe(tid, r["timestamp"], r["status"])
-                if a: alerts.append(a)
 
-                latest_hash = db.fetch_latest_path_hash(conn, tid)
-                a = st.path.observe(tid, r["timestamp"], latest_hash)
-                if a: alerts.append(a)
+                    latest_hash = db.fetch_latest_path_hash(conn, tid)
+                    a = st.path.observe(tid, r["timestamp"], latest_hash)
+                    if a: alerts.append(a)
 
-                for al in alerts:
-                    db.insert_alert(conn, al.target_id, al.timestamp_us, al.type, al.details)
-                    for s in sinks:
-                        s.emit(al)
-        time.sleep(poll_s)
+                    for al in alerts:
+                        db.insert_alert(conn, al.target_id, al.timestamp_us, al.type, al.details)
+                        for s in sinks:
+                            s.emit(al)
+            time.sleep(poll_s)
 
-    for s in sinks:
-        s.close()
+        for s in sinks:
+            s.close()
 
 
 def main() -> None:
