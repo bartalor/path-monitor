@@ -48,8 +48,6 @@ def run(config_path: str) -> None:
             for tid, st in state.items():
                 rows = db.fetch_recent_probes(conn, tid, st.last_seen_probe_ts)
                 for r in rows:
-                    if r["timestamp"] <= st.last_seen_probe_ts:
-                        continue
                     st.last_seen_probe_ts = r["timestamp"]
                     alerts: list[Alert] = []
                     if r["status"] == "ok":

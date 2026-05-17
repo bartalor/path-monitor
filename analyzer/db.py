@@ -25,7 +25,7 @@ def transaction(conn: sqlite3.Connection):
 def fetch_recent_probes(conn, target_id: int, since_ts_us: int):
     return conn.execute(
         "SELECT id, timestamp, rtt_us, status FROM probes "
-        "WHERE target_id = ? AND timestamp >= ? AND status != 'trace' "
+        "WHERE target_id = ? AND timestamp > ? AND status != 'trace' "
         "ORDER BY timestamp ASC",
         (target_id, since_ts_us),
     ).fetchall()
