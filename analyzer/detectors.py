@@ -55,14 +55,15 @@ class RttDetector:
 class LossDetector:
     window: int = 30
     threshold: float = 0.10
-    outcomes: deque[bool] = field(default_factory=deque)  # True = lost
+    outcomes: deque[bool] = field(init=False)  # True = lost
     fired: bool = False
+
+    def __post_init__(self) -> None:
+        self.outcomes = deque(maxlen=self.window)
 
     def observe(self, target_id: int, ts_us: int, status: str) -> Alert | None:
         lost = status != Status.OK
         self.outcomes.append(lost)
-        if len(self.outcomes) > self.window:
-            self.outcomes.popleft()
         if len(self.outcomes) < self.window:
             return None
         rate = sum(self.outcomes) / len(self.outcomes)
