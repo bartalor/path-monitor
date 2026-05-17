@@ -5,6 +5,8 @@ from collections import deque
 from dataclasses import dataclass, field
 from typing import Iterable
 
+from common.status import Status
+
 
 @dataclass
 class Alert:
@@ -57,7 +59,7 @@ class LossDetector:
     fired: bool = False
 
     def observe(self, target_id: int, ts_us: int, status: str) -> Alert | None:
-        lost = status != "ok"
+        lost = status != Status.OK
         self.outcomes.append(lost)
         if len(self.outcomes) > self.window:
             self.outcomes.popleft()

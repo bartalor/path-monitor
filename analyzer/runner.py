@@ -10,6 +10,8 @@ from pathlib import Path
 
 import yaml
 
+from common.status import Status
+
 from . import db
 from .detectors import Alert, LossDetector, PathChangeDetector, RttDetector
 from .sinks import build_sinks
@@ -50,7 +52,7 @@ def run(config_path: str) -> None:
                 for r in rows:
                     st.last_seen_probe_ts = r["timestamp"]
                     alerts: list[Alert] = []
-                    if r["status"] == "ok":
+                    if r["status"] == Status.OK:
                         a = st.rtt.observe(tid, r["timestamp"], r["rtt_us"])
                         if a: alerts.append(a)
                     a = st.loss.observe(tid, r["timestamp"], r["status"])

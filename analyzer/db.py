@@ -2,6 +2,8 @@ import sqlite3
 from contextlib import contextmanager
 from pathlib import Path
 
+from common.status import Status
+
 
 def connect(path: str | Path) -> sqlite3.Connection:
     conn = sqlite3.connect(path, isolation_level=None)
@@ -25,9 +27,9 @@ def transaction(conn: sqlite3.Connection):
 def fetch_recent_probes(conn, target_id: int, since_ts_us: int):
     return conn.execute(
         "SELECT id, timestamp, rtt_us, status FROM probes "
-        "WHERE target_id = ? AND timestamp > ? AND status != 'trace' "
+        "WHERE target_id = ? AND timestamp > ? AND status != ? "
         "ORDER BY timestamp ASC",
-        (target_id, since_ts_us),
+        (target_id, since_ts_us, Status.TRACE),
     ).fetchall()
 
 
@@ -35,9 +37,9 @@ def fetch_latest_path_hash(conn, target_id: int) -> str | None:
     row = conn.execute(
         "SELECT p.path_hash "
         "FROM probes pr JOIN paths p ON p.probe_id = pr.id "
-        "WHERE pr.target_id = ? AND pr.status = 'trace' "
+        "WHERE pr.target_id = ? AND pr.status = ? "
         "ORDER BY pr.timestamp DESC LIMIT 1",
-        (target_id,),
+        (target_id, Status.TRACE),
     ).fetchone()
     return row["path_hash"] if row else None
 

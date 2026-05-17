@@ -15,6 +15,8 @@ from pathlib import Path
 
 import yaml
 
+from common.status import Status
+
 from .db_writer import DbWriter, PathRecord, ProbeRecord
 from .icmp_socket import open_icmp_socket, recv_reply, send_echo
 from .traceroute import run_traceroute
@@ -49,20 +51,20 @@ def _probe_once(target: Target, identifier: int, sequence: int,
     try:
         sock = _thread_socket()
         if not send_echo(sock, target.ip, identifier, sequence, ttl=64):
-            writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "sendfail"))
+            writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, Status.SENDFAIL))
             return
         reply = recv_reply(sock, identifier, timeout_s)
     except OSError as e:
         log.warning("socket error for %s: %s", target.ip, e)
-        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "sendfail"))
+        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, Status.SENDFAIL))
         return
 
     if reply is not None and reply.sequence == sequence:
-        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, reply.rtt_us, "ok"))
+        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, reply.rtt_us, Status.OK))
     elif reply is not None:
-        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "unreachable"))
+        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, Status.UNREACHABLE))
     else:
-        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, "timeout"))
+        writer.enqueue(ProbeRecord(target.id, time.time_ns() // 1000, None, Status.TIMEOUT))
 
 
 def _trace_once(target: Target, identifier: int, max_hops: int,

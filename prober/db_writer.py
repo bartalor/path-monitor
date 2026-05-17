@@ -6,6 +6,8 @@ import sqlite3
 import threading
 from dataclasses import dataclass
 
+from common.status import Status
+
 from .traceroute import TracerouteResult
 
 
@@ -14,7 +16,7 @@ class ProbeRecord:
     target_id: int
     timestamp_us: int
     rtt_us: int | None  # None on timeout / sendfail
-    status: str         # "ok" | "timeout" | "unreachable" | "sendfail"
+    status: Status
 
 
 @dataclass
@@ -71,8 +73,8 @@ class DbWriter:
         try:
             cur = conn.execute(
                 "INSERT INTO probes(target_id, timestamp, rtt_us, status) "
-                "VALUES (?, ?, NULL, 'trace')",
-                (r.target_id, r.timestamp_us),
+                "VALUES (?, ?, NULL, ?)",
+                (r.target_id, r.timestamp_us, Status.TRACE),
             )
             probe_id = cur.lastrowid
             conn.executemany(

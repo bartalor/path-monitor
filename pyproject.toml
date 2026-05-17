@@ -7,7 +7,7 @@ name = "path-monitor"
 version = "0.1.0"
 description = "Continuous ICMP/traceroute network path monitor with anomaly detection"
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 dependencies = [
     "PyYAML>=6.0",
 ]
@@ -19,7 +19,7 @@ dev = ["pytest>=7"]
 path-monitor = "orchestrator.cli:main"
 
 [tool.setuptools]
-packages = ["prober", "analyzer", "orchestrator"]
+packages = ["prober", "analyzer", "orchestrator", "common"]
 
 [tool.pytest.ini_options]
 markers = [
