@@ -85,17 +85,17 @@ class PathChangeDetector:
     last_hash: str | None = None
 
     def observe(self, target_id: int, ts_us: int, path_hash: str | None) -> Alert | None:
-        if path_hash is None:
+        if path_hash is None or path_hash == self.last_hash:
             return None
         prev, self.last_hash = self.last_hash, path_hash
-        if prev is not None and prev != path_hash:
-            return Alert(
-                target_id=target_id,
-                timestamp_us=ts_us,
-                type="path_change",
-                details=f"from={prev} to={path_hash}",
-            )
-        return None
+        if prev is None:
+            return None
+        return Alert(
+            target_id=target_id,
+            timestamp_us=ts_us,
+            type="path_change",
+            details=f"from={prev} to={path_hash}",
+        )
 
 
 def drain(*alerts: Alert | None) -> Iterable[Alert]:
