@@ -44,6 +44,17 @@ def build_echo_request(identifier: int, sequence: int, payload: bytes = b"") -> 
     return struct.pack(_HDR, IcmpType.ECHO_REQUEST, 0, cks, identifier, sequence) + payload
 
 
+def _parse_icmp_header(buf: bytes) -> tuple[int, int, int, int] | None:
+    """Validate IPv4+ICMP framing and unpack the ICMP header (type, code, id, seq)."""
+    if len(buf) < 20:
+        return None
+    ihl = (buf[0] & 0x0F) * 4
+    if ihl < 20 or len(buf) < ihl + 8:
+        return None
+    t, c, _, ident, seq = struct.unpack(_HDR, buf[ihl:ihl + 8])
+    return t, c, ident, seq
+
+
 def parse_ipv4_icmp(pkt: bytes) -> ParsedReply | None:
     """Parse a raw IPv4+ICMP packet. Returns None on truncation.
 
@@ -53,22 +64,17 @@ def parse_ipv4_icmp(pkt: bytes) -> ParsedReply | None:
     Those error replies are unwrapped here so callers always see the
     identifier/sequence of *their* probe.
     """
-    if len(pkt) < 20:
+    outer = _parse_icmp_header(pkt)
+    if outer is None:
         return None
-    ihl = (pkt[0] & 0x0F) * 4
-    if ihl < 20 or len(pkt) < ihl + 8:
-        return None
-
-    t, c, _, ident, seq = struct.unpack(_HDR, pkt[ihl:ihl + 8])
-
+    t, c, ident, seq = outer
+    
+    is_error = False
     if t in _ERROR_TYPES:
-        rest = pkt[ihl + 8:]
-        if len(rest) < 20:
+        is_error = True
+        inner = _parse_icmp_header(pkt[((pkt[0] & 0x0F) * 4) + 8:])
+        if inner is None:
             return None
-        inner_ihl = (rest[0] & 0x0F) * 4
-        if len(rest) < inner_ihl + 8:
-            return None
-        _, _, _, ident, seq = struct.unpack(_HDR, rest[inner_ihl:inner_ihl + 8])
-        return ParsedReply(t, c, ident, seq, is_error=True)
+        _, _, ident, seq = inner
 
-    return ParsedReply(t, c, ident, seq, is_error=False)
+    return ParsedReply(t, c, ident, seq, is_error)
